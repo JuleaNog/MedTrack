@@ -1,7 +1,5 @@
 import streamlit as st
 
-from services.database import get_supabase
-
 
 st.set_page_config(
     page_title="MedTrack",
@@ -9,17 +7,18 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("MedTrack")
-st.write("Sistema de gerenciamento de equipamentos médico-hospitalares")
+
+paginas = {
+    "Gestão": [
+        st.Page(
+            "app_pages/equipamentos.py",
+            title="Equipamentos",
+            icon="🩺"
+        ),
+    ]
+}
 
 
-supabase = get_supabase()
+pagina = st.navigation(paginas)
 
-response = (
-    supabase
-    .table("equipamentos")
-    .select("*")
-    .execute()
-)
-
-st.write(response.data)
+pagina.run()
