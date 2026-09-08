@@ -2,8 +2,12 @@ import streamlit as st
 
 from services.equipamentos import listar_equipamentos
 from services.locais import listar_locais_ativos
-from services.movimentacoes import registrar_movimentacao
-
+from services.movimentacoes import (
+    registrar_movimentacao,
+    listar_movimentacoes_equipamento,
+)
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # ============================================================
 # DIÁLOGO DE MOVIMENTAÇÃO
@@ -135,7 +139,121 @@ def dialog_movimentacao(equipamento):
 
             st.exception(erro)
 
+@st.dialog("Histórico de movimentações")
+def dialog_historico(equipamento):
+    """
+    Exibe todas as movimentações registradas
+    para o equipamento selecionado.
+    """
 
+    modelo = equipamento.get("modelo") or {}
+
+    st.write(
+        f"**{equipamento.get('codigo')} — "
+        f"{modelo.get('tipo', 'Equipamento')}**"
+    )
+
+    st.caption(
+        "Movimentações registradas da mais recente "
+        "para a mais antiga."
+    )
+
+    st.divider()
+
+    try:
+
+        movimentacoes = listar_movimentacoes_equipamento(
+            equipamento["id"]
+        )
+
+    except Exception as erro:
+
+        st.error(
+            "Não foi possível carregar o histórico "
+            "de movimentações."
+        )
+
+        st.exception(erro)
+
+        return
+
+
+    if not movimentacoes:
+
+        st.info(
+            "Nenhuma movimentação registrada "
+            "para este equipamento."
+        )
+
+        return
+
+
+    for movimentacao in movimentacoes:
+
+        origem = movimentacao.get("origem") or {}
+        destino = movimentacao.get("destino") or {}
+
+        origem_setor = (
+            origem.get("setor")
+            or "Local não definido"
+        )
+
+        origem_sala = (
+            origem.get("sala")
+            or "-"
+        )
+
+        destino_setor = (
+            destino.get("setor")
+            or "Local não definido"
+        )
+
+        destino_sala = (
+            destino.get("sala")
+            or "-"
+        )
+
+        data_formatada = formatar_data_hora(
+            movimentacao.get("data_hora")
+        )
+
+
+        with st.container(border=True):
+
+            st.markdown(
+                f"**{data_formatada}**"
+            )
+
+            st.write(
+                f"📍 **Origem:** "
+                f"{origem_setor} — {origem_sala}"
+            )
+
+            st.write(
+                f"➡️ **Destino:** "
+                f"{destino_setor} — {destino_sala}"
+            )
+
+
+            motivo = movimentacao.get("motivo")
+
+            if motivo:
+
+                st.write(
+                    f"**Motivo:** {motivo}"
+                )
+
+
+            observacoes = movimentacao.get(
+                "observacoes"
+            )
+
+            if observacoes:
+
+                st.write(
+                    f"**Observações:** "
+                    f"{observacoes}"
+                )
 # ============================================================
 # TÍTULO
 # ============================================================
@@ -644,12 +762,36 @@ if equipamentos_filtrados:
 
     with col_acao4:
 
-        st.button(
+        if st.button(
             "📜 Histórico",
             use_container_width=True,
-            disabled=True,
-            help=(
-                "Essa funcionalidade será implementada "
-                "em uma próxima etapa."
-            ),
+        ):
+
+            dialog_historico(
+                equipamento
+            )
+
+# funções de formatação
+
+def formatar_data_hora(valor):
+    """
+    Converte uma data/hora retornada pelo Supabase
+    para o formato brasileiro.
+    """
+
+    if not valor:
+        return "-"
+
+    try:
+        data = datetime.fromisoformat(
+            valor.replace("Z", "+00:00")
         )
+
+        data = data.astimezone(
+            ZoneInfo("America/Sao_Paulo")
+        )
+
+        return data.strftime("%d/%m/%Y às %H:%M")
+
+    except (ValueError, TypeError):
+        return str(valor)
