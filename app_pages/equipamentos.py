@@ -9,6 +9,31 @@ from services.movimentacoes import (
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+# funções de formatação
+
+def formatar_data_hora(valor):
+    """
+    Converte uma data/hora retornada pelo Supabase
+    para o formato brasileiro.
+    """
+
+    if not valor:
+        return "-"
+
+    try:
+        data = datetime.fromisoformat(
+            valor.replace("Z", "+00:00")
+        )
+
+        data = data.astimezone(
+            ZoneInfo("America/Sao_Paulo")
+        )
+
+        return data.strftime("%d/%m/%Y às %H:%M")
+
+    except (ValueError, TypeError):
+        return str(valor)
+
 # ============================================================
 # DIÁLOGO DE MOVIMENTAÇÃO
 # ============================================================
@@ -770,28 +795,3 @@ if equipamentos_filtrados:
             dialog_historico(
                 equipamento
             )
-
-# funções de formatação
-
-def formatar_data_hora(valor):
-    """
-    Converte uma data/hora retornada pelo Supabase
-    para o formato brasileiro.
-    """
-
-    if not valor:
-        return "-"
-
-    try:
-        data = datetime.fromisoformat(
-            valor.replace("Z", "+00:00")
-        )
-
-        data = data.astimezone(
-            ZoneInfo("America/Sao_Paulo")
-        )
-
-        return data.strftime("%d/%m/%Y às %H:%M")
-
-    except (ValueError, TypeError):
-        return str(valor)
