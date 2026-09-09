@@ -1,13 +1,17 @@
 import streamlit as st
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from services.equipamentos import listar_equipamentos
 from services.locais import listar_locais_ativos
+
 from services.movimentacoes import (
     registrar_movimentacao,
     listar_movimentacoes_equipamento,
 )
-from datetime import datetime
-from zoneinfo import ZoneInfo
+
+from services.qr_codes import gerar_qr_equipamento
 
 # funções de formatação
 
@@ -279,6 +283,64 @@ def dialog_historico(equipamento):
                     f"**Observações:** "
                     f"{observacoes}"
                 )
+
+@st.dialog("QR Code do equipamento")
+def dialog_qr_code(equipamento):
+    """
+    Exibe o QR Code permanente associado ao equipamento.
+    """
+
+    modelo = equipamento.get("modelo") or {}
+
+    codigo = equipamento.get("codigo")
+
+    st.write(
+        f"**{codigo} — "
+        f"{modelo.get('tipo', 'Equipamento')}**"
+    )
+
+    try:
+
+        qr_png, url = gerar_qr_equipamento(
+            codigo
+        )
+
+    except Exception as erro:
+
+        st.error(
+            "Não foi possível gerar o QR Code."
+        )
+
+        st.exception(erro)
+
+        return
+
+
+    st.image(
+        qr_png,
+        width=280,
+    )
+
+
+    st.caption(
+        "O QR Code direciona permanentemente "
+        "para o registro digital deste equipamento."
+    )
+
+
+    st.code(
+        url,
+        language=None,
+    )
+
+
+    st.download_button(
+        "Baixar QR Code",
+        data=qr_png,
+        file_name=f"QR_{codigo}.png",
+        mime="image/png",
+        use_container_width=True,
+    )
 # ============================================================
 # TÍTULO
 # ============================================================
@@ -289,6 +351,12 @@ st.caption(
     "Consulte os equipamentos médico-hospitalares cadastrados "
     "e gerencie suas informações."
 )
+
+# ============================================================
+# EQUIPAMENTO RECEBIDO PELA URL
+# ============================================================
+
+codigo_url = st.query_params.get("equipamento")
 
 
 # ============================================================
@@ -327,6 +395,44 @@ if not equipamentos:
 
     st.stop()
 
+# ============================================================
+# VALIDAR EQUIPAMENTO RECEBIDO PELO QR / URL
+# ============================================================
+
+equipamento_url = None
+
+if codigo_url:
+
+    equipamento_url = next(
+        (
+            equipamento
+            for equipamento in equipamentos
+            if equipamento.get("codigo") == codigo_url
+        ),
+        None,
+    )
+
+    if equipamento_url:
+
+        st.info(
+            f"Equipamento acessado diretamente: **{codigo_url}**"
+        )
+
+    else:
+
+        st.error(
+            f"O equipamento **{codigo_url}** não foi encontrado."
+        )
+
+    if codigo_url:
+
+        if st.button(
+            "← Ver todos os equipamentos"
+        ):
+
+            st.query_params.clear()
+
+            st.rerun()
 
 # ============================================================
 # FILTROS
@@ -347,6 +453,7 @@ with col_busca:
 
     busca = st.text_input(
         "Buscar",
+        value=codigo_url or "",
         placeholder=(
             "Código, patrimônio, número de série, "
             "equipamento, fabricante ou modelo..."
@@ -726,9 +833,13 @@ if equipamentos_filtrados:
 
     st.markdown("#### Ações")
 
-    col_acao1, col_acao2, col_acao3, col_acao4 = (
-        st.columns(4)
-    )
+    (
+        col_acao1,
+        col_acao2,
+        col_acao3,
+        col_acao4,
+        col_acao5,
+    ) = st.columns(5)
 
 
     # --------------------------------------------------------
@@ -793,5 +904,20 @@ if equipamentos_filtrados:
         ):
 
             dialog_historico(
+                equipamento
+            )
+
+    # --------------------------------------------------------
+    # QR CODE
+    # --------------------------------------------------------
+
+    with col_acao5:
+
+        if st.button(
+            "🔳 QR Code",
+            use_container_width=True,
+        ):
+
+            dialog_qr_code(
                 equipamento
             )
