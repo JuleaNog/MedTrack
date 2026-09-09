@@ -13,7 +13,8 @@ paginas = {
         st.Page(
             "app_pages/equipamentos.py",
             title="Equipamentos",
-            icon="🩺"
+            icon="🩺",
+            default=True,
         ),
     ]
 }
