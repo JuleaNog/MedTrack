@@ -356,8 +356,12 @@ st.caption(
 # EQUIPAMENTO RECEBIDO PELA URL
 # ============================================================
 
-codigo_url = st.query_params.get("equipamento")
-
+codigo_url = (
+    st.query_params.get("equipamento")
+    or st.session_state.get( #protege caso o usuário tenha vindo do QR Code e a página tenha sido recarregada
+        "equipamento_pendente"
+    )
+)
 
 # ============================================================
 # MENSAGEM DE SUCESSO APÓS MOVIMENTAÇÃO
@@ -431,6 +435,11 @@ if codigo_url:
         ):
 
             st.query_params.clear()
+
+            st.session_state.pop(
+                "equipamento_pendente",
+                None,
+            )
 
             st.rerun()
 
