@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from services.equipamentos import listar_equipamentos
 from services.locais import listar_locais_ativos
+from services.falhas import registrar_falha
 
 from services.movimentacoes import (
     registrar_movimentacao,
@@ -341,6 +342,127 @@ def dialog_qr_code(equipamento):
         mime="image/png",
         use_container_width=True,
     )
+
+@st.dialog("Registrar falha")
+def dialog_registrar_falha(equipamento):
+    """
+    Registra uma nova falha associada
+    ao equipamento selecionado.
+    """
+
+    modelo = equipamento.get("modelo") or {}
+    local = equipamento.get("local") or {}
+
+    codigo = equipamento.get("codigo")
+    tipo = modelo.get("tipo") or "Equipamento"
+
+    st.write(
+        f"**{codigo} — {tipo}**"
+    )
+
+    st.write(
+        f"Local atual: **"
+        f"{local.get('setor') or 'Não definido'} / "
+        f"{local.get('sala') or 'Não definida'}**"
+    )
+
+    st.write(
+        f"Status atual: **"
+        f"{equipamento.get('status') or '-'}**"
+    )
+
+    st.divider()
+
+    categorias = [
+        "Não informada",
+        "ELÉTRICA",
+        "ELETRÔNICA",
+        "MECÂNICA",
+        "SOFTWARE",
+        "ACESSÓRIO",
+        "DESEMPENHO",
+        "OUTRA",
+    ]
+
+    gravidades = [
+        "Não informada",
+        "BAIXA",
+        "MODERADA",
+        "ALTA",
+        "CRÍTICA",
+    ]
+
+    with st.form("form_registrar_falha"):
+
+        categoria = st.selectbox(
+            "Categoria",
+            categorias,
+        )
+
+        gravidade = st.selectbox(
+            "Gravidade",
+            gravidades,
+        )
+
+        descricao = st.text_area(
+            "Descrição da falha *",
+            placeholder=(
+                "Descreva o problema observado no equipamento..."
+            ),
+            height=130,
+        )
+
+        confirmar = st.form_submit_button(
+            "Registrar falha",
+            type="primary",
+            use_container_width=True,
+        )
+
+    if confirmar:
+
+        if not descricao.strip():
+
+            st.warning(
+                "Informe uma descrição para a falha."
+            )
+
+            return
+
+        categoria_banco = (
+            None
+            if categoria == "Não informada"
+            else categoria
+        )
+
+        gravidade_banco = (
+            None
+            if gravidade == "Não informada"
+            else gravidade
+        )
+
+        try:
+
+            registrar_falha(
+                equipamento_id=equipamento["id"],
+                descricao=descricao,
+                categoria=categoria_banco,
+                gravidade=gravidade_banco,
+            )
+
+            st.session_state["falha_sucesso"] = (
+                f"Falha registrada com sucesso "
+                f"para o equipamento {codigo}."
+            )
+
+            st.rerun()
+
+        except Exception as erro:
+
+            st.error(
+                "Não foi possível registrar a falha."
+            )
+
+            st.exception(erro)
 # ============================================================
 # TÍTULO
 # ============================================================
@@ -373,6 +495,13 @@ if "movimentacao_sucesso" in st.session_state:
         st.session_state.pop("movimentacao_sucesso")
     )
 
+if "falha_sucesso" in st.session_state:
+
+    st.success(
+        st.session_state.pop(
+            "falha_sucesso"
+        )
+    )
 
 # ============================================================
 # BUSCAR EQUIPAMENTOS
@@ -873,15 +1002,26 @@ if equipamentos_filtrados:
 
     with col_acao2:
 
-        st.button(
+        equipamento_baixado = (
+            equipamento.get("status") == "BAIXADO"
+            or not equipamento.get("ativo", True)
+        )
+
+        if st.button(
             "⚠️ Registrar falha",
             use_container_width=True,
-            disabled=True,
+            disabled=equipamento_baixado,
             help=(
-                "Essa funcionalidade será implementada "
-                "em uma próxima etapa."
+                "Não é possível registrar novas falhas "
+                "para equipamentos baixados ou inativos."
+                if equipamento_baixado
+                else None
             ),
-        )
+        ):
+
+            dialog_registrar_falha(
+                equipamento
+            )
 
 
     # --------------------------------------------------------
