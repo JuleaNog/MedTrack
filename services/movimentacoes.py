@@ -1,4 +1,4 @@
-from services.database import get_supabase, get_supabase_admin
+from services.database import get_supabase
 
 
 def registrar_movimentacao(
@@ -8,11 +8,11 @@ def registrar_movimentacao(
     observacoes: str | None = None,
 ):
     """
-    Registra uma movimentação e atualiza a localização atual
-    do equipamento por meio da função PostgreSQL.
+    Registra a movimentação utilizando
+    a sessão do usuário autenticado.
     """
 
-    supabase = get_supabase_admin()
+    supabase = get_supabase()
 
     response = (
         supabase
@@ -35,8 +35,7 @@ def listar_movimentacoes_equipamento(
     equipamento_id: int,
 ):
     """
-    Retorna todas as movimentações registradas
-    para um equipamento, da mais recente para a mais antiga.
+    Lista o histórico de movimentações.
     """
 
     supabase = get_supabase()
@@ -66,8 +65,14 @@ def listar_movimentacoes_equipamento(
             )
             """
         )
-        .eq("equipamento_id", equipamento_id)
-        .order("data_hora", desc=True)
+        .eq(
+            "equipamento_id",
+            equipamento_id,
+        )
+        .order(
+            "data_hora",
+            desc=True,
+        )
         .execute()
     )
 

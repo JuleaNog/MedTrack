@@ -2,13 +2,10 @@ import streamlit as st
 from supabase import Client, create_client
 
 
-@st.cache_resource
-def get_supabase() -> Client:
+def criar_cliente_supabase() -> Client:
     """
-    Cliente padrão do Supabase.
-
-    Utiliza a publishable/anon key e respeita
-    as políticas de Row Level Security (RLS).
+    Cria um novo cliente Supabase utilizando
+    apenas a Publishable/Anon Key.
     """
 
     url = st.secrets["supabase"]["url"]
@@ -17,20 +14,35 @@ def get_supabase() -> Client:
     return create_client(url, key)
 
 
-@st.cache_resource
-def get_supabase_admin() -> Client:
+def get_supabase() -> Client:
     """
-    Cliente administrativo usado temporariamente
-    durante o desenvolvimento local.
-
-    Utiliza a Secret Key e ignora as políticas RLS.
-
-    IMPORTANTE:
-    A Secret Key nunca deve ser enviada ao GitHub
-    ou exposta ao navegador.
+    Retorna um cliente Supabase autenticado
+    com a sessão armazenada no Streamlit.
     """
 
-    url = st.secrets["supabase"]["url"]
-    secret_key = st.secrets["supabase"]["secret_key"]
+    access_token = st.session_state.get("access_token")
+    refresh_token = st.session_state.get("refresh_token")
 
-    return create_client(url, secret_key)
+    if not access_token or not refresh_token:
+        raise RuntimeError(
+            "Usuário não autenticado."
+        )
+
+    supabase = criar_cliente_supabase()
+
+    response = supabase.auth.set_session(
+        access_token,
+        refresh_token,
+    )
+
+    # set_session pode renovar os tokens se necessário.
+    if response.session:
+        st.session_state["access_token"] = (
+            response.session.access_token
+        )
+
+        st.session_state["refresh_token"] = (
+            response.session.refresh_token
+        )
+
+    return supabase
