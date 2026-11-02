@@ -15,6 +15,7 @@ from services.manutencoes import (
     registrar_manutencao,
     listar_manutencoes_pendentes_equipamento,
     concluir_manutencao,
+    obter_status_preventiva,
 )
 
 from services.movimentacoes import (
@@ -1467,7 +1468,25 @@ if equipamentos_filtrados:
     modelo = equipamento.get("modelo") or {}
     local = equipamento.get("local") or {}
 
+    # ========================================================
+    # STATUS DA MANUTENÇÃO PREVENTIVA
+    # ========================================================
 
+    try:
+
+        preventiva = obter_status_preventiva(
+            equipamento["id"]
+        )
+
+    except Exception as erro:
+
+        preventiva = None
+
+        st.warning(
+            "Não foi possível calcular "
+            "a próxima manutenção preventiva."
+        )
+    
     # ========================================================
     # CABEÇALHO DA FICHA
     # ========================================================
@@ -1591,6 +1610,148 @@ if equipamentos_filtrados:
             f"{equipamento.get('status') or '-'}"
         )
 
+    # ========================================================
+    # MANUTENÇÃO PREVENTIVA
+    # ========================================================
+
+    st.markdown("#### Manutenção preventiva")
+
+
+    if not preventiva:
+
+        st.info(
+            "Não foi possível obter informações "
+            "sobre a manutenção preventiva."
+        )
+
+
+    else:
+
+        situacao = preventiva.get(
+            "situacao"
+        )
+
+        periodicidade = preventiva.get(
+            "periodicidade_meses"
+        )
+
+        ultima = preventiva.get(
+            "ultima_preventiva"
+        )
+
+        proxima = preventiva.get(
+            "proxima_preventiva"
+        )
+
+        dias = preventiva.get(
+            "dias_restantes"
+        )
+
+
+        # ====================================================
+        # SEM PERIODICIDADE
+        # ====================================================
+
+        if situacao == "SEM_PERIODICIDADE":
+
+            st.info(
+                "Este modelo não possui periodicidade "
+                "de manutenção preventiva cadastrada."
+            )
+
+
+        # ====================================================
+        # SEM HISTÓRICO
+        # ====================================================
+
+        elif situacao == "SEM_HISTORICO":
+
+            st.info(
+                f"Periodicidade cadastrada: "
+                f"**{periodicidade} meses**. "
+                "Ainda não existe uma manutenção "
+                "preventiva concluída para calcular "
+                "a próxima data."
+            )
+
+
+        # ====================================================
+        # COM HISTÓRICO
+        # ====================================================
+
+        else:
+
+            col_prev1, col_prev2, col_prev3 = (
+                st.columns(3)
+            )
+
+
+            with col_prev1:
+
+                st.metric(
+                    "Última preventiva",
+                    formatar_data_hora(
+                        ultima
+                    ),
+                )
+
+
+            with col_prev2:
+
+                st.metric(
+                    "Periodicidade",
+                    f"{periodicidade} meses",
+                )
+
+
+            with col_prev3:
+
+                st.metric(
+                    "Próxima preventiva",
+                    formatar_data_hora(
+                        proxima
+                    ),
+                )
+
+
+            # ================================================
+            # STATUS VISUAL
+            # ================================================
+
+            if situacao == "VENCIDA":
+
+                dias_vencidos = abs(
+                    dias
+                )
+
+                st.error(
+                    f"🚨 Manutenção preventiva VENCIDA "
+                    f"há **{dias_vencidos} dia(s)**."
+                )
+
+
+            elif situacao == "VENCE_HOJE":
+
+                st.error(
+                    "🚨 A manutenção preventiva "
+                    "vence **hoje**."
+                )
+
+
+            elif situacao == "PROXIMA":
+
+                st.warning(
+                    f"⚠️ Próxima manutenção preventiva "
+                    f"em **{dias} dia(s)**."
+                )
+
+
+            elif situacao == "EM_DIA":
+
+                st.success(
+                    f"✅ Manutenção preventiva em dia. "
+                    f"Próxima em **{dias} dia(s)**."
+                )
 
     # ========================================================
     # OBSERVAÇÕES
