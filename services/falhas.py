@@ -37,3 +37,46 @@ def registrar_falha(
     )
 
     return response.data
+
+def listar_falhas_pendentes_equipamento(
+    equipamento_id: int,
+):
+    """
+    Retorna as falhas ABERTAS ou EM_ANALISE
+    de um determinado equipamento.
+    """
+
+    supabase = get_supabase()
+
+    response = (
+        supabase
+        .table("falhas")
+        .select(
+            """
+            id,
+            data_hora,
+            categoria,
+            descricao,
+            gravidade,
+            status
+            """
+        )
+        .eq(
+            "equipamento_id",
+            equipamento_id,
+        )
+        .in_(
+            "status",
+            [
+                "ABERTA",
+                "EM_ANALISE",
+            ],
+        )
+        .order(
+            "data_hora",
+            desc=True,
+        )
+        .execute()
+    )
+
+    return response.data

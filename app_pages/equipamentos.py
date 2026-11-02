@@ -1,11 +1,17 @@
 import streamlit as st
 
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from services.equipamentos import listar_equipamentos
 from services.locais import listar_locais_ativos
-from services.falhas import registrar_falha
+
+from services.falhas import (
+    registrar_falha,
+    listar_falhas_pendentes_equipamento,
+)
+
+from services.manutencoes import registrar_manutencao
 
 from services.movimentacoes import (
     registrar_movimentacao,
@@ -463,6 +469,276 @@ def dialog_registrar_falha(equipamento):
             )
 
             st.exception(erro)
+
+@st.dialog("Registrar manutenção")
+def dialog_registrar_manutencao(equipamento):
+    """
+    Abre uma nova manutenção para
+    o equipamento selecionado.
+    """
+
+    modelo = equipamento.get("modelo") or {}
+    local = equipamento.get("local") or {}
+
+    codigo = equipamento.get("codigo")
+    tipo_equipamento = (
+        modelo.get("tipo")
+        or "Equipamento"
+    )
+
+    # ========================================================
+    # CABEÇALHO
+    # ========================================================
+
+    st.write(
+        f"**{codigo} — {tipo_equipamento}**"
+    )
+
+    st.write(
+        f"Local atual: **"
+        f"{local.get('setor') or 'Não definido'} / "
+        f"{local.get('sala') or 'Não definida'}**"
+    )
+
+    st.write(
+        f"Status atual: **"
+        f"{equipamento.get('status') or '-'}**"
+    )
+
+    st.divider()
+
+    # ========================================================
+    # TIPO DE MANUTENÇÃO
+    # ========================================================
+
+    tipos_manutencao = [
+        "PREVENTIVA",
+        "CORRETIVA",
+        "CALIBRACAO",
+        "INSPECAO",
+    ]
+
+    tipo = st.selectbox(
+        "Tipo de manutenção *",
+        tipos_manutencao,
+    )
+
+    # ========================================================
+    # FALHA ASSOCIADA
+    # ========================================================
+
+    falha_id = None
+
+    if tipo == "CORRETIVA":
+
+        st.markdown(
+            "##### Falha associada"
+        )
+
+        try:
+
+            falhas = (
+                listar_falhas_pendentes_equipamento(
+                    equipamento["id"]
+                )
+            )
+
+        except Exception as erro:
+
+            st.error(
+                "Não foi possível carregar "
+                "as falhas do equipamento."
+            )
+
+            st.exception(erro)
+
+            return
+
+
+        opcoes_falha = {
+            "Nenhuma falha vinculada": None
+        }
+
+
+        for falha in falhas:
+
+            categoria = (
+                falha.get("categoria")
+                or "Sem categoria"
+            )
+
+            gravidade = (
+                falha.get("gravidade")
+                or "Sem gravidade"
+            )
+
+            descricao_falha = (
+                falha.get("descricao")
+                or ""
+            )
+
+            # Evita textos muito grandes no selectbox
+            if len(descricao_falha) > 55:
+                descricao_falha = (
+                    descricao_falha[:55]
+                    + "..."
+                )
+
+            texto_falha = (
+                f"Falha #{falha['id']} — "
+                f"{categoria} — "
+                f"{gravidade} — "
+                f"{descricao_falha}"
+            )
+
+            opcoes_falha[
+                texto_falha
+            ] = falha["id"]
+
+
+        falha_selecionada = st.selectbox(
+            "Vincular a uma falha",
+            options=list(
+                opcoes_falha.keys()
+            ),
+        )
+
+        falha_id = opcoes_falha[
+            falha_selecionada
+        ]
+
+
+        if not falhas:
+
+            st.info(
+                "Este equipamento não possui "
+                "falhas abertas ou em análise."
+            )
+
+    # ========================================================
+    # FORMULÁRIO
+    # ========================================================
+
+    with st.form(
+        "form_registrar_manutencao"
+    ):
+
+        data_inicio = st.date_input(
+            "Data de início *",
+            value=date.today(),
+            format="DD/MM/YYYY",
+        )
+
+        descricao = st.text_area(
+            "Descrição / serviço previsto *",
+            placeholder=(
+                "Descreva o motivo da manutenção "
+                "ou o serviço a ser realizado..."
+            ),
+            height=120,
+        )
+
+        responsavel = st.text_input(
+            "Responsável",
+            placeholder=(
+                "Nome do técnico ou responsável"
+            ),
+        )
+
+        empresa = st.text_input(
+            "Empresa",
+            placeholder=(
+                "Empresa responsável pelo serviço, "
+                "quando aplicável"
+            ),
+        )
+
+        observacoes = st.text_area(
+            "Observações",
+            placeholder=(
+                "Informações adicionais (opcional)"
+            ),
+            height=80,
+        )
+
+        confirmar = st.form_submit_button(
+            "Registrar manutenção",
+            type="primary",
+            use_container_width=True,
+        )
+
+    # ========================================================
+    # SALVAR
+    # ========================================================
+
+    if confirmar:
+
+        if not descricao.strip():
+
+            st.warning(
+                "Informe a descrição da manutenção."
+            )
+
+            return
+
+
+        try:
+
+            manutencao_criada = registrar_manutencao(
+                equipamento_id=equipamento["id"],
+                tipo=tipo,
+                data_inicio=data_inicio,
+                descricao=descricao,
+                falha_id=falha_id,
+                responsavel=responsavel,
+                empresa=empresa,
+                observacoes=observacoes,
+            )
+
+
+            numero_os_gerada = None
+
+            if manutencao_criada:
+
+                numero_os_gerada = (
+                    manutencao_criada[0].get(
+                        "numero_os"
+                    )
+                )
+
+
+            if numero_os_gerada:
+
+                mensagem = (
+                    f"Manutenção {tipo} registrada com sucesso. "
+                    f"OS: {numero_os_gerada}"
+                )
+
+            else:
+
+                mensagem = (
+                    f"Manutenção {tipo} registrada com sucesso "
+                    f"para {codigo}."
+                )
+
+
+            st.session_state[
+                "toast_manutencao_sucesso"
+            ] = mensagem
+
+
+            st.rerun()
+
+
+        except Exception as erro:
+
+            st.error(
+                "Não foi possível registrar "
+                "a manutenção."
+            )
+
+            st.exception(erro)
+
 # ============================================================
 # TÍTULO
 # ============================================================
@@ -501,6 +777,15 @@ if "falha_sucesso" in st.session_state:
         st.session_state.pop(
             "falha_sucesso"
         )
+    )
+
+if "toast_manutencao_sucesso" in st.session_state:
+
+    st.toast(
+        st.session_state.pop(
+            "toast_manutencao_sucesso"
+        ),
+        icon="✅",
     )
 
 # ============================================================
@@ -1030,15 +1315,32 @@ if equipamentos_filtrados:
 
     with col_acao3:
 
-        st.button(
+        equipamento_baixado = (
+            equipamento.get("status")
+            == "BAIXADO"
+
+            or not equipamento.get(
+                "ativo",
+                True,
+            )
+        )
+
+
+        if st.button(
             "🔧 Registrar manutenção",
             use_container_width=True,
-            disabled=True,
+            disabled=equipamento_baixado,
             help=(
-                "Essa funcionalidade será implementada "
-                "em uma próxima etapa."
+                "Não é possível registrar manutenção para "
+                "equipamentos baixados ou inativos."
+                if equipamento_baixado
+                else None
             ),
-        )
+        ):
+
+            dialog_registrar_manutencao(
+                equipamento
+            )
 
 
     # --------------------------------------------------------
