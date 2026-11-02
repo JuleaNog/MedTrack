@@ -152,3 +152,40 @@ def concluir_manutencao(
     )
 
     return response.data
+
+# ============================================================
+# STATUS DA MANUTENÇÃO PREVENTIVA
+# ============================================================
+
+def obter_status_preventiva(
+    equipamento_id: int,
+):
+    """
+    Obtém a situação atual da manutenção preventiva
+    do equipamento.
+
+    Retorna:
+    - última preventiva concluída
+    - periodicidade em meses
+    - próxima preventiva
+    - dias restantes
+    - situação
+    """
+
+    supabase = get_supabase()
+
+    response = (
+        supabase
+        .rpc(
+            "obter_status_preventiva",
+            {
+                "p_equipamento_id": equipamento_id,
+            },
+        )
+        .execute()
+    )
+
+    if not response.data:
+        return None
+
+    return response.data[0]
