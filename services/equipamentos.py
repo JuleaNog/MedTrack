@@ -1,6 +1,5 @@
 from services.database import get_supabase
 
-
 def listar_equipamentos():
     supabase = get_supabase()
 
