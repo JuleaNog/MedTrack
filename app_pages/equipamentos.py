@@ -11,7 +11,11 @@ from services.falhas import (
     listar_falhas_pendentes_equipamento,
 )
 
-from services.manutencoes import registrar_manutencao
+from services.manutencoes import (
+    registrar_manutencao,
+    listar_manutencoes_pendentes_equipamento,
+    concluir_manutencao,
+)
 
 from services.movimentacoes import (
     registrar_movimentacao,
@@ -739,6 +743,352 @@ def dialog_registrar_manutencao(equipamento):
 
             st.exception(erro)
 
+@st.dialog("Concluir manutenção")
+def dialog_concluir_manutencao(equipamento):
+    """
+    Permite selecionar e concluir uma manutenção
+    aberta do equipamento.
+    """
+
+    modelo = equipamento.get("modelo") or {}
+
+    codigo = equipamento.get("codigo")
+
+    tipo_equipamento = (
+        modelo.get("tipo")
+        or "Equipamento"
+    )
+
+
+    # ========================================================
+    # CABEÇALHO
+    # ========================================================
+
+    st.write(
+        f"**{codigo} — {tipo_equipamento}**"
+    )
+
+    st.caption(
+        "Selecione uma manutenção aberta "
+        "para registrar sua conclusão."
+    )
+
+    st.divider()
+
+
+    # ========================================================
+    # BUSCAR MANUTENÇÕES PENDENTES
+    # ========================================================
+
+    try:
+
+        manutencoes = (
+            listar_manutencoes_pendentes_equipamento(
+                equipamento["id"]
+            )
+        )
+
+    except Exception as erro:
+
+        st.error(
+            "Não foi possível carregar "
+            "as manutenções pendentes."
+        )
+
+        st.exception(erro)
+
+        return
+
+
+    if not manutencoes:
+
+        st.info(
+            "Este equipamento não possui "
+            "manutenções abertas ou em andamento."
+        )
+
+        return
+
+
+    # ========================================================
+    # SELECT DA MANUTENÇÃO
+    # ========================================================
+
+    opcoes = {}
+
+
+    for manutencao in manutencoes:
+
+        data_inicio_texto = "-"
+
+        if manutencao.get("data_inicio"):
+
+            try:
+
+                data_obj = date.fromisoformat(
+                    manutencao["data_inicio"]
+                )
+
+                data_inicio_texto = (
+                    data_obj.strftime(
+                        "%d/%m/%Y"
+                    )
+                )
+
+            except ValueError:
+
+                data_inicio_texto = (
+                    manutencao["data_inicio"]
+                )
+
+
+        texto = (
+            f"{manutencao.get('numero_os') or 'Sem OS'}"
+            f" — {manutencao.get('tipo')}"
+            f" — início {data_inicio_texto}"
+        )
+
+        opcoes[texto] = manutencao
+
+
+    manutencao_nome = st.selectbox(
+        "Manutenção *",
+        options=list(
+            opcoes.keys()
+        ),
+    )
+
+
+    manutencao = opcoes[
+        manutencao_nome
+    ]
+
+
+    # ========================================================
+    # DETALHES DA MANUTENÇÃO
+    # ========================================================
+
+    st.markdown(
+        "##### Detalhes"
+    )
+
+
+    col1, col2 = st.columns(2)
+
+
+    with col1:
+
+        st.write(
+            "**OS:** "
+            f"{manutencao.get('numero_os') or '-'}"
+        )
+
+        st.write(
+            "**Tipo:** "
+            f"{manutencao.get('tipo') or '-'}"
+        )
+
+
+    with col2:
+
+        st.write(
+            "**Status:** "
+            f"{manutencao.get('status') or '-'}"
+        )
+
+        st.write(
+            "**Responsável:** "
+            f"{manutencao.get('responsavel') or '-'}"
+        )
+
+
+    st.write(
+        "**Descrição inicial:** "
+        f"{manutencao.get('descricao') or '-'}"
+    )
+
+
+    # ========================================================
+    # MOSTRAR FALHA VINCULADA
+    # ========================================================
+
+    falha = (
+        manutencao.get("falha")
+        or {}
+    )
+
+
+    if falha:
+
+        st.markdown(
+            "##### Falha vinculada"
+        )
+
+        st.write(
+            f"**Falha #{falha.get('id')}**"
+        )
+
+        st.write(
+            "**Categoria:** "
+            f"{falha.get('categoria') or '-'}"
+        )
+
+        st.write(
+            "**Gravidade:** "
+            f"{falha.get('gravidade') or '-'}"
+        )
+
+        st.write(
+            "**Descrição:** "
+            f"{falha.get('descricao') or '-'}"
+        )
+
+        st.info(
+            "Ao concluir esta manutenção corretiva, "
+            "a falha vinculada será marcada como RESOLVIDA."
+        )
+
+
+    # ========================================================
+    # PREPARAR DATA MÍNIMA
+    # ========================================================
+
+    try:
+
+        data_inicio = date.fromisoformat(
+            manutencao["data_inicio"]
+        )
+
+    except (ValueError, TypeError):
+
+        data_inicio = date.today()
+
+
+    data_padrao = max(
+        date.today(),
+        data_inicio,
+    )
+
+
+    st.divider()
+
+
+    # ========================================================
+    # FORMULÁRIO DE CONCLUSÃO
+    # ========================================================
+
+    with st.form(
+        "form_concluir_manutencao"
+    ):
+
+        data_conclusao = st.date_input(
+            "Data de conclusão *",
+            value=data_padrao,
+            min_value=data_inicio,
+            format="DD/MM/YYYY",
+        )
+
+
+        intervencao = st.text_area(
+            "Intervenção realizada *",
+            placeholder=(
+                "Descreva o serviço efetivamente "
+                "realizado no equipamento..."
+            ),
+            height=140,
+        )
+
+
+        observacoes = st.text_area(
+            "Observações da conclusão",
+            placeholder=(
+                "Informações adicionais sobre "
+                "a conclusão do serviço (opcional)"
+            ),
+            height=80,
+        )
+
+
+        confirmar = st.form_submit_button(
+            "Concluir manutenção",
+            type="primary",
+            use_container_width=True,
+        )
+
+
+    # ========================================================
+    # SALVAR CONCLUSÃO
+    # ========================================================
+
+    if confirmar:
+
+        if not intervencao.strip():
+
+            st.warning(
+                "Informe a intervenção realizada."
+            )
+
+            return
+
+
+        try:
+
+            resultado = concluir_manutencao(
+                manutencao_id=manutencao["id"],
+                data_conclusao=data_conclusao,
+                intervencao=intervencao,
+                observacoes=observacoes,
+            )
+
+
+            numero_os = (
+                manutencao.get("numero_os")
+                or "Manutenção"
+            )
+
+
+            falha_resolvida = None
+
+            if resultado:
+
+                falha_resolvida = (
+                    resultado[0].get(
+                        "falha_resolvida_id"
+                    )
+                )
+
+
+            if falha_resolvida:
+
+                mensagem = (
+                    f"{numero_os} concluída com sucesso. "
+                    f"Falha #{falha_resolvida} resolvida."
+                )
+
+            else:
+
+                mensagem = (
+                    f"{numero_os} concluída com sucesso."
+                )
+
+
+            st.session_state[
+                "toast_conclusao_manutencao"
+            ] = mensagem
+
+
+            st.rerun()
+
+
+        except Exception as erro:
+
+            st.error(
+                "Não foi possível concluir "
+                "a manutenção."
+            )
+
+            st.exception(erro)
+
 # ============================================================
 # TÍTULO
 # ============================================================
@@ -784,6 +1134,15 @@ if "toast_manutencao_sucesso" in st.session_state:
     st.toast(
         st.session_state.pop(
             "toast_manutencao_sucesso"
+        ),
+        icon="✅",
+    )
+
+if "toast_conclusao_manutencao" in st.session_state:
+
+    st.toast(
+        st.session_state.pop(
+            "toast_conclusao_manutencao"
         ),
         icon="✅",
     )
@@ -1256,13 +1615,27 @@ if equipamentos_filtrados:
 
     st.markdown("#### Ações")
 
-    (
-        col_acao1,
-        col_acao2,
-        col_acao3,
-        col_acao4,
-        col_acao5,
-    ) = st.columns(5)
+
+    # --------------------------------------------------------
+    # Verificar se o equipamento está baixado/inativo
+    # --------------------------------------------------------
+
+    equipamento_baixado = (
+        equipamento.get("status") == "BAIXADO"
+        or not equipamento.get(
+            "ativo",
+            True,
+        )
+    )
+
+
+    # ========================================================
+    # PRIMEIRA LINHA DE AÇÕES
+    # ========================================================
+
+    col_acao1, col_acao2, col_acao3 = (
+        st.columns(3)
+    )
 
 
     # --------------------------------------------------------
@@ -1287,11 +1660,6 @@ if equipamentos_filtrados:
 
     with col_acao2:
 
-        equipamento_baixado = (
-            equipamento.get("status") == "BAIXADO"
-            or not equipamento.get("ativo", True)
-        )
-
         if st.button(
             "⚠️ Registrar falha",
             use_container_width=True,
@@ -1310,29 +1678,18 @@ if equipamentos_filtrados:
 
 
     # --------------------------------------------------------
-    # MANUTENÇÃO
+    # REGISTRAR MANUTENÇÃO
     # --------------------------------------------------------
 
     with col_acao3:
-
-        equipamento_baixado = (
-            equipamento.get("status")
-            == "BAIXADO"
-
-            or not equipamento.get(
-                "ativo",
-                True,
-            )
-        )
-
 
         if st.button(
             "🔧 Registrar manutenção",
             use_container_width=True,
             disabled=equipamento_baixado,
             help=(
-                "Não é possível registrar manutenção para "
-                "equipamentos baixados ou inativos."
+                "Não é possível registrar manutenção "
+                "para equipamentos baixados ou inativos."
                 if equipamento_baixado
                 else None
             ),
@@ -1343,11 +1700,36 @@ if equipamentos_filtrados:
             )
 
 
+    # ========================================================
+    # SEGUNDA LINHA DE AÇÕES
+    # ========================================================
+
+    col_acao4, col_acao5, col_acao6 = (
+        st.columns(3)
+    )
+
+
+    # --------------------------------------------------------
+    # CONCLUIR MANUTENÇÃO
+    # --------------------------------------------------------
+
+    with col_acao4:
+
+        if st.button(
+            "✅ Concluir manutenção",
+            use_container_width=True,
+        ):
+
+            dialog_concluir_manutencao(
+                equipamento
+            )
+
+
     # --------------------------------------------------------
     # HISTÓRICO
     # --------------------------------------------------------
 
-    with col_acao4:
+    with col_acao5:
 
         if st.button(
             "📜 Histórico",
@@ -1362,7 +1744,7 @@ if equipamentos_filtrados:
     # QR CODE
     # --------------------------------------------------------
 
-    with col_acao5:
+    with col_acao6:
 
         if st.button(
             "🔳 QR Code",
