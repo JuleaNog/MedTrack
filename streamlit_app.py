@@ -151,6 +151,13 @@ with st.sidebar:
 
 paginas = {
     "Gestão": [
+
+        st.Page(
+            "app_pages/dashboard.py",
+            title="Dashboard",
+            icon="📊",
+        ),
+
         st.Page(
             "app_pages/equipamentos.py",
             title="Equipamentos",
@@ -159,7 +166,6 @@ paginas = {
         ),
     ]
 }
-
 
 pagina = st.navigation(
     paginas

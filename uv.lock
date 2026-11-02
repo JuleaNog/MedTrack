@@ -58,6 +58,7 @@ name = "blank-app-template"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "pandas" },
     { name = "qrcode", extra = ["pil"] },
     { name = "streamlit" },
     { name = "supabase" },
@@ -65,6 +66,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "pandas", specifier = ">=3.0.3" },
     { name = "qrcode", extras = ["pil"], specifier = ">=8.2" },
     { name = "streamlit", specifier = ">=1.61.1" },
     { name = "supabase", specifier = ">=2.31.0" },
