@@ -18,9 +18,10 @@ from services.manutencoes import (
     obter_status_preventiva,
 )
 
-from services.movimentacoes import (
-    registrar_movimentacao,
-    listar_movimentacoes_equipamento,
+from services.movimentacoes import registrar_movimentacao
+
+from services.historico import (
+    listar_historico_equipamento,
 )
 
 from services.qr_codes import gerar_qr_equipamento
@@ -54,6 +55,40 @@ def formatar_data_hora(valor):
 
     except (ValueError, TypeError):
         return str(valor)
+
+def formatar_data_evento(
+    evento,
+):
+    """
+    Formata a data da linha do tempo.
+
+    Eventos que possuem horário:
+    DD/MM/YYYY às HH:MM
+
+    Eventos que possuem apenas data:
+    DD/MM/YYYY
+    """
+
+    data = evento.get(
+        "data_ordem"
+    )
+
+    if not data:
+        return "-"
+
+
+    if evento.get(
+        "mostrar_hora"
+    ):
+
+        return data.strftime(
+            "%d/%m/%Y às %H:%M"
+        )
+
+
+    return data.strftime(
+        "%d/%m/%Y"
+    )
 
 # ============================================================
 # DIÁLOGO DE MOVIMENTAÇÃO
@@ -185,38 +220,72 @@ def dialog_movimentacao(equipamento):
 
             st.exception(erro)
 
-@st.dialog("Histórico de movimentações")
+@st.dialog("Histórico do equipamento", width="large")
 def dialog_historico(equipamento):
     """
-    Exibe todas as movimentações registradas
-    para o equipamento selecionado.
+    Exibe uma linha do tempo completa
+    do equipamento.
     """
 
-    modelo = equipamento.get("modelo") or {}
+    modelo = (
+        equipamento.get(
+            "modelo"
+        )
+        or {}
+    )
+
+
+    codigo = (
+        equipamento.get(
+            "codigo"
+        )
+        or "-"
+    )
+
+
+    tipo_equipamento = (
+        modelo.get(
+            "tipo"
+        )
+        or "Equipamento"
+    )
+
+
+    # ========================================================
+    # CABEÇALHO
+    # ========================================================
 
     st.write(
-        f"**{equipamento.get('codigo')} — "
-        f"{modelo.get('tipo', 'Equipamento')}**"
+        f"**{codigo} — "
+        f"{tipo_equipamento}**"
     )
 
     st.caption(
-        "Movimentações registradas da mais recente "
-        "para a mais antiga."
+        "Linha do tempo de movimentações, "
+        "falhas, manutenções e inventários."
     )
 
     st.divider()
 
+
+    # ========================================================
+    # BUSCAR HISTÓRICO
+    # ========================================================
+
     try:
 
-        movimentacoes = listar_movimentacoes_equipamento(
-            equipamento["id"]
+        eventos = (
+            listar_historico_equipamento(
+                equipamento["id"]
+            )
         )
+
 
     except Exception as erro:
 
         st.error(
-            "Não foi possível carregar o histórico "
-            "de movimentações."
+            "Não foi possível carregar "
+            "o histórico do equipamento."
         )
 
         st.exception(erro)
@@ -224,81 +293,171 @@ def dialog_historico(equipamento):
         return
 
 
-    if not movimentacoes:
+    if not eventos:
 
         st.info(
-            "Nenhuma movimentação registrada "
+            "Nenhum evento registrado "
             "para este equipamento."
         )
 
         return
 
 
-    for movimentacao in movimentacoes:
+    # ========================================================
+    # FILTROS
+    # ========================================================
 
-        origem = movimentacao.get("origem") or {}
-        destino = movimentacao.get("destino") or {}
+    categorias = {
+        "MOVIMENTACAO":
+            "📍 Movimentações",
 
-        origem_setor = (
-            origem.get("setor")
-            or "Local não definido"
+        "FALHA":
+            "⚠️ Falhas",
+
+        "MANUTENCAO":
+            "🔧 Manutenções",
+
+        "INVENTARIO":
+            "📦 Inventários",
+    }
+
+
+    categorias_existentes = [
+        categoria
+
+        for categoria
+        in categorias
+
+        if any(
+            evento.get(
+                "categoria"
+            ) == categoria
+
+            for evento
+            in eventos
+        )
+    ]
+
+
+    categorias_selecionadas = (
+        st.multiselect(
+            "Mostrar eventos",
+            options=
+                categorias_existentes,
+
+            default=
+                categorias_existentes,
+
+            format_func=lambda valor:
+                categorias[
+                    valor
+                ],
+        )
+    )
+
+
+    eventos_filtrados = [
+        evento
+
+        for evento in eventos
+
+        if evento.get(
+            "categoria"
+        )
+        in categorias_selecionadas
+    ]
+
+
+    st.caption(
+        f"{len(eventos_filtrados)} "
+        "evento(s) exibido(s)"
+    )
+
+
+    # ========================================================
+    # LINHA DO TEMPO
+    # ========================================================
+
+    if not eventos_filtrados:
+
+        st.info(
+            "Nenhum evento corresponde "
+            "aos filtros selecionados."
         )
 
-        origem_sala = (
-            origem.get("sala")
-            or "-"
-        )
-
-        destino_setor = (
-            destino.get("setor")
-            or "Local não definido"
-        )
-
-        destino_sala = (
-            destino.get("sala")
-            or "-"
-        )
-
-        data_formatada = formatar_data_hora(
-            movimentacao.get("data_hora")
-        )
+        return
 
 
-        with st.container(border=True):
+    for evento in eventos_filtrados:
+
+        with st.container(
+            border=True
+        ):
+
+            # ------------------------------------------------
+            # TÍTULO
+            # ------------------------------------------------
 
             st.markdown(
-                f"**{data_formatada}**"
-            )
-
-            st.write(
-                f"📍 **Origem:** "
-                f"{origem_setor} — {origem_sala}"
-            )
-
-            st.write(
-                f"➡️ **Destino:** "
-                f"{destino_setor} — {destino_sala}"
+                f"#### "
+                f"{evento.get('icone')} "
+                f"{evento.get('titulo')}"
             )
 
 
-            motivo = movimentacao.get("motivo")
+            # ------------------------------------------------
+            # DATA
+            # ------------------------------------------------
 
-            if motivo:
+            st.caption(
+                formatar_data_evento(
+                    evento
+                )
+            )
+
+
+            # ------------------------------------------------
+            # RESUMO
+            # ------------------------------------------------
+
+            resumo = evento.get(
+                "resumo"
+            )
+
+            if resumo:
 
                 st.write(
-                    f"**Motivo:** {motivo}"
+                    f"**{resumo}**"
                 )
 
 
-            observacoes = movimentacao.get(
-                "observacoes"
+            # ------------------------------------------------
+            # DETALHES
+            # ------------------------------------------------
+
+            detalhes = (
+                evento.get(
+                    "detalhes"
+                )
+                or {}
             )
 
-            if observacoes:
+
+            for nome, valor in (
+                detalhes.items()
+            ):
+
+                if (
+                    valor is None
+                    or valor == ""
+                ):
+
+                    continue
+
 
                 st.write(
-                    f"**Observações:** "
-                    f"{observacoes}"
+                    f"**{nome}:** "
+                    f"{valor}"
                 )
 
 @st.dialog("QR Code do equipamento")
