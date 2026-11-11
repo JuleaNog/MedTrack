@@ -25,6 +25,11 @@ from services.movimentacoes import (
 
 from services.qr_codes import gerar_qr_equipamento
 
+from services.inventarios import (
+    listar_inventarios_abertos,
+    registrar_equipamento_inventario,
+)
+
 # funções de formatação
 
 def formatar_data_hora(valor):
@@ -1090,6 +1095,129 @@ def dialog_concluir_manutencao(equipamento):
 
             st.exception(erro)
 
+@st.dialog("Registrar em inventário")
+def dialog_registrar_em_inventario(
+    equipamento,
+):
+
+    try:
+
+        inventarios = (
+            listar_inventarios_abertos()
+        )
+
+    except Exception as erro:
+
+        st.error(
+            "Não foi possível carregar "
+            "os inventários abertos."
+        )
+
+        st.exception(erro)
+
+        return
+
+
+    if not inventarios:
+
+        st.info(
+            "Não existe nenhum inventário "
+            "aberto no momento."
+        )
+
+        return
+
+
+    opcoes = {}
+
+
+    for inventario in inventarios:
+
+        local = (
+            inventario.get("local")
+            or {}
+        )
+
+        texto = (
+            f"{inventario.get('nome')} — "
+            f"{local.get('setor')} — "
+            f"{local.get('sala')}"
+        )
+
+        opcoes[
+            texto
+        ] = inventario["id"]
+
+
+    inventario_nome = st.selectbox(
+        "Inventário",
+        list(
+            opcoes.keys()
+        ),
+    )
+
+
+    st.write(
+        "Equipamento: "
+        f"**{equipamento.get('codigo')}**"
+    )
+
+
+    if st.button(
+        "Registrar equipamento",
+        type="primary",
+        use_container_width=True,
+    ):
+
+        try:
+
+            resultado = (
+                registrar_equipamento_inventario(
+                    inventario_id=
+                        opcoes[
+                            inventario_nome
+                        ],
+
+                    codigo_equipamento=
+                        equipamento[
+                            "codigo"
+                        ],
+                )
+            )
+
+
+            classificacao = "-"
+
+            if resultado:
+
+                classificacao = (
+                    resultado[0].get(
+                        "resultado",
+                        "-",
+                    )
+                )
+
+
+            st.session_state[
+                "toast_equipamento_inventario"
+            ] = (
+                f"{equipamento['codigo']} "
+                f"registrado no inventário "
+                f"como {classificacao}."
+            )
+
+
+            st.rerun()
+
+
+        except Exception as erro:
+
+            st.error(
+                "Não foi possível registrar "
+                "o equipamento no inventário."
+            )
+
+            st.exception(erro)
 # ============================================================
 # TÍTULO
 # ============================================================
@@ -1147,6 +1275,16 @@ if "toast_conclusao_manutencao" in st.session_state:
         ),
         icon="✅",
     )
+
+if "toast_equipamento_inventario" in st.session_state:
+
+    st.toast(
+        st.session_state.pop(
+            "toast_equipamento_inventario"
+        ),
+        icon="📦",
+    )
+
 
 # ============================================================
 # BUSCAR EQUIPAMENTOS
@@ -1915,3 +2053,18 @@ if equipamentos_filtrados:
             dialog_qr_code(
                 equipamento
             )
+
+        # ========================================================
+        # TERCEIRA LINHA DE AÇÕES
+        # ========================================================
+
+        st.markdown("")
+
+        if st.button(
+            "📦 Registrar em inventário",
+            use_container_width=True,
+        ):
+
+            dialog_registrar_em_inventario(
+                equipamento
+            )   
