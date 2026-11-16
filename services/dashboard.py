@@ -7,8 +7,8 @@ def carregar_dados_dashboard():
 
     Retorna:
     - equipamentos ativos
-    - falhas pendentes
-    - manutenções pendentes
+    - falhas
+    - manutenções
     - situação das preventivas
     """
 
@@ -35,16 +35,12 @@ def carregar_dados_dashboard():
             )
             """
         )
-        .eq(
-            "ativo",
-            True,
-        )
+        .eq("ativo", True)
         .execute()
     )
 
-
     # ========================================================
-    # FALHAS ABERTAS / EM ANÁLISE
+    # FALHAS
     # ========================================================
 
     falhas_response = (
@@ -61,23 +57,12 @@ def carregar_dados_dashboard():
             status
             """
         )
-        .in_(
-            "status",
-            [
-                "ABERTA",
-                "EM_ANALISE",
-            ],
-        )
-        .order(
-            "data_hora",
-            desc=True,
-        )
+        .order("data_hora", desc=True)
         .execute()
     )
 
-
     # ========================================================
-    # MANUTENÇÕES ABERTAS / EM ANDAMENTO
+    # MANUTENÇÕES
     # ========================================================
 
     manutencoes_response = (
@@ -90,24 +75,14 @@ def carregar_dados_dashboard():
             numero_os,
             tipo,
             data_inicio,
+            data_conclusao,
             descricao,
             status
             """
         )
-        .in_(
-            "status",
-            [
-                "ABERTA",
-                "EM_ANDAMENTO",
-            ],
-        )
-        .order(
-            "data_inicio",
-            desc=True,
-        )
+        .order("data_inicio", desc=True)
         .execute()
     )
-
 
     # ========================================================
     # PREVENTIVAS
@@ -115,31 +90,13 @@ def carregar_dados_dashboard():
 
     preventivas_response = (
         supabase
-        .rpc(
-            "listar_status_preventivas"
-        )
+        .rpc("listar_status_preventivas")
         .execute()
     )
 
-
     return {
-        "equipamentos": (
-            equipamentos_response.data
-            or []
-        ),
-
-        "falhas": (
-            falhas_response.data
-            or []
-        ),
-
-        "manutencoes": (
-            manutencoes_response.data
-            or []
-        ),
-
-        "preventivas": (
-            preventivas_response.data
-            or []
-        ),
+        "equipamentos": equipamentos_response.data or [],
+        "falhas": falhas_response.data or [],
+        "manutencoes": manutencoes_response.data or [],
+        "preventivas": preventivas_response.data or [],
     }
