@@ -11,6 +11,17 @@ FUSO_HORARIO = ZoneInfo("America/Sao_Paulo")
 # FUNÇÕES AUXILIARES
 # ============================================================
 
+def _formatar_usuario(email):
+    """
+    Exibe o usuário responsável pelo evento.
+    """
+
+    if email:
+        return email
+
+    return "Não registrado (registro anterior à auditoria)"
+
+
 def _converter_data(valor, fim_do_dia=False):
     """
     Converte datas vindas do Supabase para datetime.
@@ -24,48 +35,24 @@ def _converter_data(valor, fim_do_dia=False):
         return None
 
     try:
-
         valor = str(valor)
 
         # Data com horário
         if "T" in valor:
-
-            data = datetime.fromisoformat(
-                valor.replace(
-                    "Z",
-                    "+00:00",
-                )
-            )
+            data = datetime.fromisoformat(valor.replace("Z", "+00:00"))
 
             if data.tzinfo is None:
+                data = data.replace(tzinfo=FUSO_HORARIO)
 
-                data = data.replace(
-                    tzinfo=FUSO_HORARIO
-                )
-
-            return data.astimezone(
-                FUSO_HORARIO
-            )
+            return data.astimezone(FUSO_HORARIO)
 
         # Data sem horário
-        data = date.fromisoformat(
-            valor
-        )
+        data = date.fromisoformat(valor)
+        horario = time(23, 59, 59) if fim_do_dia else time(0, 0, 0)
 
-        horario = (
-            time(23, 59, 59)
-            if fim_do_dia
-            else time(0, 0, 0)
-        )
-
-        return datetime.combine(
-            data,
-            horario,
-            tzinfo=FUSO_HORARIO,
-        )
+        return datetime.combine(data, horario, tzinfo=FUSO_HORARIO)
 
     except (ValueError, TypeError):
-
         return None
 
 
@@ -77,15 +64,8 @@ def _formatar_local(local):
     if not local:
         return "-"
 
-    setor = (
-        local.get("setor")
-        or "-"
-    )
-
-    sala = (
-        local.get("sala")
-        or "-"
-    )
+    setor = local.get("setor") or "-"
+    sala = local.get("sala") or "-"
 
     return f"{setor} — {sala}"
 
@@ -94,14 +74,13 @@ def _formatar_local(local):
 # HISTÓRICO COMPLETO
 # ============================================================
 
-def listar_historico_equipamento(
-    equipamento_id: int,
-):
+def listar_historico_equipamento(equipamento_id: int):
     """
     Reúne em uma única linha do tempo:
 
     - movimentações
     - falhas
+    - resolução de falhas
     - manutenções
     - eventos de inventário
 
@@ -110,7 +89,6 @@ def listar_historico_equipamento(
     """
 
     supabase = get_supabase()
-
     eventos = []
 
 
@@ -127,6 +105,7 @@ def listar_historico_equipamento(
             data_hora,
             motivo,
             observacoes,
+            registrado_por_email,
 
             origem:locais!movimentacoes_local_origem_id_fkey (
                 id,
@@ -143,105 +122,40 @@ def listar_historico_equipamento(
             )
             """
         )
-        .eq(
-            "equipamento_id",
-            equipamento_id,
-        )
+        .eq("equipamento_id", equipamento_id)
         .execute()
     )
 
-
-    for movimentacao in (
-        movimentacoes_response.data
-        or []
-    ):
-
-        data_evento = _converter_data(
-            movimentacao.get(
-                "data_hora"
-            )
-        )
+    for movimentacao in movimentacoes_response.data or []:
+        data_evento = _converter_data(movimentacao.get("data_hora"))
 
         if not data_evento:
             continue
 
-
-        origem = (
-            movimentacao.get(
-                "origem"
-            )
-            or {}
-        )
-
-        destino = (
-            movimentacao.get(
-                "destino"
-            )
-            or {}
-        )
-
+        origem = movimentacao.get("origem") or {}
+        destino = movimentacao.get("destino") or {}
 
         detalhes = {
-            "Origem":
-                _formatar_local(
-                    origem
-                ),
-
-            "Destino":
-                _formatar_local(
-                    destino
-                ),
+            "Origem": _formatar_local(origem),
+            "Destino": _formatar_local(destino),
+            "Registrado por": _formatar_usuario(movimentacao.get("registrado_por_email")),
         }
 
+        if movimentacao.get("motivo"):
+            detalhes["Motivo"] = movimentacao["motivo"]
 
-        if movimentacao.get(
-            "motivo"
-        ):
-
-            detalhes["Motivo"] = (
-                movimentacao[
-                    "motivo"
-                ]
-            )
-
-
-        if movimentacao.get(
-            "observacoes"
-        ):
-
-            detalhes["Observações"] = (
-                movimentacao[
-                    "observacoes"
-                ]
-            )
-
+        if movimentacao.get("observacoes"):
+            detalhes["Observações"] = movimentacao["observacoes"]
 
         eventos.append(
             {
-                "categoria":
-                    "MOVIMENTACAO",
-
-                "icone":
-                    "📍",
-
-                "titulo":
-                    "Movimentação",
-
-                "resumo":
-                    (
-                        f"{_formatar_local(origem)} "
-                        f"→ "
-                        f"{_formatar_local(destino)}"
-                    ),
-
-                "data_ordem":
-                    data_evento,
-
-                "mostrar_hora":
-                    True,
-
-                "detalhes":
-                    detalhes,
+                "categoria": "MOVIMENTACAO",
+                "icone": "📍",
+                "titulo": "Movimentação",
+                "resumo": f"{_formatar_local(origem)} → {_formatar_local(destino)}",
+                "data_ordem": data_evento,
+                "mostrar_hora": True,
+                "detalhes": detalhes,
             }
         )
 
@@ -260,93 +174,68 @@ def listar_historico_equipamento(
             categoria,
             descricao,
             gravidade,
-            status
+            status,
+            registrada_por_email,
+            resolvida_por_email,
+            data_resolucao
             """
         )
-        .eq(
-            "equipamento_id",
-            equipamento_id,
-        )
+        .eq("equipamento_id", equipamento_id)
         .execute()
     )
 
-
-    for falha in (
-        falhas_response.data
-        or []
-    ):
-
-        data_evento = _converter_data(
-            falha.get(
-                "data_hora"
-            )
-        )
-
+    for falha in falhas_response.data or []:
+        data_evento = _converter_data(falha.get("data_hora"))
 
         if not data_evento:
             continue
 
-
-        categoria = (
-            falha.get(
-                "categoria"
-            )
-            or "Sem categoria"
-        )
-
-        gravidade = (
-            falha.get(
-                "gravidade"
-            )
-            or "Sem gravidade"
-        )
-
+        categoria = falha.get("categoria") or "Sem categoria"
+        gravidade = falha.get("gravidade") or "Sem gravidade"
 
         detalhes = {
-            "Status":
-                falha.get(
-                    "status"
-                )
-                or "-",
-
-            "Categoria":
-                categoria,
-
-            "Gravidade":
-                gravidade,
-
-            "Descrição":
-                falha.get(
-                    "descricao"
-                )
-                or "-",
+            "Status": falha.get("status") or "-",
+            "Categoria": categoria,
+            "Gravidade": gravidade,
+            "Descrição": falha.get("descricao") or "-",
+            "Registrada por": _formatar_usuario(falha.get("registrada_por_email")),
         }
-
 
         eventos.append(
             {
-                "categoria":
-                    "FALHA",
-
-                "icone":
-                    "⚠️",
-
-                "titulo":
-                    "Falha registrada",
-
-                "resumo":
-                    f"{categoria} — {gravidade}",
-
-                "data_ordem":
-                    data_evento,
-
-                "mostrar_hora":
-                    True,
-
-                "detalhes":
-                    detalhes,
+                "categoria": "FALHA",
+                "icone": "⚠️",
+                "titulo": "Falha registrada",
+                "resumo": f"{categoria} — {gravidade}",
+                "data_ordem": data_evento,
+                "mostrar_hora": True,
+                "detalhes": detalhes,
             }
         )
+
+        # ----------------------------------------------------
+        # EVENTO: FALHA RESOLVIDA
+        # ----------------------------------------------------
+
+        if falha.get("data_resolucao"):
+            data_resolucao = _converter_data(falha["data_resolucao"])
+
+            if data_resolucao:
+                eventos.append(
+                    {
+                        "categoria": "FALHA",
+                        "icone": "✅",
+                        "titulo": "Falha resolvida",
+                        "resumo": f"Falha #{falha['id']} — {categoria}",
+                        "data_ordem": data_resolucao,
+                        "mostrar_hora": True,
+                        "detalhes": {
+                            "Gravidade": gravidade,
+                            "Resolvida por": _formatar_usuario(falha.get("resolvida_por_email")),
+                            "Descrição": falha.get("descricao") or "-",
+                        },
+                    }
+                )
 
 
     # ========================================================
@@ -369,126 +258,54 @@ def listar_historico_equipamento(
             empresa,
             status,
             observacoes,
-            falha_id
+            falha_id,
+            aberta_por_email,
+            concluida_por_email,
+            concluida_em
             """
         )
-        .eq(
-            "equipamento_id",
-            equipamento_id,
-        )
+        .eq("equipamento_id", equipamento_id)
         .execute()
     )
 
-
-    for manutencao in (
-        manutencoes_response.data
-        or []
-    ):
-
-        numero_os = (
-            manutencao.get(
-                "numero_os"
-            )
-            or "Sem OS"
-        )
-
-        tipo = (
-            manutencao.get(
-                "tipo"
-            )
-            or "-"
-        )
+    for manutencao in manutencoes_response.data or []:
+        numero_os = manutencao.get("numero_os") or "Sem OS"
+        tipo = manutencao.get("tipo") or "-"
 
 
         # ----------------------------------------------------
         # EVENTO: INÍCIO DA MANUTENÇÃO
         # ----------------------------------------------------
 
-        data_inicio = _converter_data(
-            manutencao.get(
-                "data_inicio"
-            )
-        )
-
+        data_inicio = _converter_data(manutencao.get("data_inicio"))
 
         if data_inicio:
-
             detalhes_inicio = {
-                "OS":
-                    numero_os,
-
-                "Tipo":
-                    tipo,
-
-                "Status atual":
-                    manutencao.get(
-                        "status"
-                    )
-                    or "-",
-
-                "Descrição":
-                    manutencao.get(
-                        "descricao"
-                    )
-                    or "-",
+                "OS": numero_os,
+                "Tipo": tipo,
+                "Status atual": manutencao.get("status") or "-",
+                "Descrição": manutencao.get("descricao") or "-",
+                "Registrada por": _formatar_usuario(manutencao.get("aberta_por_email")),
             }
 
+            if manutencao.get("responsavel"):
+                detalhes_inicio["Responsável"] = manutencao["responsavel"]
 
-            if manutencao.get(
-                "responsavel"
-            ):
+            if manutencao.get("empresa"):
+                detalhes_inicio["Empresa"] = manutencao["empresa"]
 
-                detalhes_inicio[
-                    "Responsável"
-                ] = manutencao[
-                    "responsavel"
-                ]
-
-
-            if manutencao.get(
-                "empresa"
-            ):
-
-                detalhes_inicio[
-                    "Empresa"
-                ] = manutencao[
-                    "empresa"
-                ]
-
-
-            if manutencao.get(
-                "falha_id"
-            ):
-
-                detalhes_inicio[
-                    "Falha vinculada"
-                ] = (
-                    f"#{manutencao['falha_id']}"
-                )
-
+            if manutencao.get("falha_id"):
+                detalhes_inicio["Falha vinculada"] = f"#{manutencao['falha_id']}"
 
             eventos.append(
                 {
-                    "categoria":
-                        "MANUTENCAO",
-
-                    "icone":
-                        "🔧",
-
-                    "titulo":
-                        "Manutenção iniciada",
-
-                    "resumo":
-                        f"{numero_os} — {tipo}",
-
-                    "data_ordem":
-                        data_inicio,
-
-                    "mostrar_hora":
-                        False,
-
-                    "detalhes":
-                        detalhes_inicio,
+                    "categoria": "MANUTENCAO",
+                    "icone": "🔧",
+                    "titulo": "Manutenção iniciada",
+                    "resumo": f"{numero_os} — {tipo}",
+                    "data_ordem": data_inicio,
+                    "mostrar_hora": False,
+                    "detalhes": detalhes_inicio,
                 }
             )
 
@@ -497,89 +314,42 @@ def listar_historico_equipamento(
         # EVENTO: CONCLUSÃO DA MANUTENÇÃO
         # ----------------------------------------------------
 
-        if (
-            manutencao.get(
-                "status"
-            ) == "CONCLUIDA"
-            and manutencao.get(
-                "data_conclusao"
-            )
-        ):
+        if manutencao.get("status") == "CONCLUIDA" and manutencao.get("data_conclusao"):
 
-            data_conclusao = (
-                _converter_data(
-                    manutencao[
-                        "data_conclusao"
-                    ],
+            if manutencao.get("concluida_em"):
+                data_conclusao = _converter_data(manutencao["concluida_em"])
+                mostrar_hora_conclusao = True
+
+            else:
+                data_conclusao = _converter_data(
+                    manutencao["data_conclusao"],
                     fim_do_dia=True,
                 )
-            )
-
+                mostrar_hora_conclusao = False
 
             if data_conclusao:
-
                 detalhes_conclusao = {
-                    "OS":
-                        numero_os,
-
-                    "Tipo":
-                        tipo,
-
-                    "Intervenção realizada":
-                        manutencao.get(
-                            "intervencao"
-                        )
-                        or "-",
+                    "OS": numero_os,
+                    "Tipo": tipo,
+                    "Intervenção realizada": manutencao.get("intervencao") or "-",
+                    "Concluída por": _formatar_usuario(manutencao.get("concluida_por_email")),
                 }
 
+                if manutencao.get("falha_id"):
+                    detalhes_conclusao["Falha vinculada"] = f"#{manutencao['falha_id']}"
 
-                if manutencao.get(
-                    "falha_id"
-                ):
-
-                    detalhes_conclusao[
-                        "Falha vinculada"
-                    ] = (
-                        f"#{manutencao['falha_id']}"
-                    )
-
-
-                if manutencao.get(
-                    "observacoes"
-                ):
-
-                    detalhes_conclusao[
-                        "Observações"
-                    ] = manutencao[
-                        "observacoes"
-                    ]
-
+                if manutencao.get("observacoes"):
+                    detalhes_conclusao["Observações"] = manutencao["observacoes"]
 
                 eventos.append(
                     {
-                        "categoria":
-                            "MANUTENCAO",
-
-                        "icone":
-                            "✅",
-
-                        "titulo":
-                            "Manutenção concluída",
-
-                        "resumo":
-                            (
-                                f"{numero_os} "
-                                f"— {tipo}"
-                            ),
-
-                        "data_ordem":
-                            data_conclusao,
-
-                        "mostrar_hora":
-                            False,
-
-                        "detalhes":
-                            detalhes_conclusao,
+                        "categoria": "MANUTENCAO",
+                        "icone": "✅",
+                        "titulo": "Manutenção concluída",
+                        "resumo": f"{numero_os} — {tipo}",
+                        "data_ordem": data_conclusao,
+                        "mostrar_hora": mostrar_hora_conclusao,
+                        "detalhes": detalhes_conclusao,
                     }
                 )
 
@@ -598,13 +368,17 @@ def listar_historico_equipamento(
             created_at,
             resultado,
             observacoes,
+            conferido_por_email,
 
             inventario:inventarios!inventario_itens_inventario_id_fkey (
                 id,
                 nome,
                 data_inicio,
                 data_fim,
-                status
+                status,
+                criado_por_email,
+                finalizado_por_email,
+                finalizado_em
             ),
 
             esperado:locais!inventario_itens_local_esperado_id_fkey (
@@ -622,86 +396,55 @@ def listar_historico_equipamento(
             )
             """
         )
-        .eq(
-            "equipamento_id",
-            equipamento_id,
-        )
+        .eq("equipamento_id", equipamento_id)
         .execute()
     )
 
-
-    for item in (
-        inventarios_response.data
-        or []
-    ):
-
-        resultado = item.get(
-            "resultado"
-        )
-
+    for item in inventarios_response.data or []:
+        resultado = item.get("resultado")
 
         # PENDENTE ainda não representa
         # um evento concluído de inventário.
         if resultado == "PENDENTE":
             continue
 
-
-        inventario = (
-            item.get(
-                "inventario"
-            )
-            or {}
-        )
-
-
+        inventario = item.get("inventario") or {}
         mostrar_hora = True
+        data_evento = None
 
 
-        # Itens encontrados possuem data_hora.
-        if item.get(
-            "data_hora"
-        ):
+        # ----------------------------------------------------
+        # ITENS ENCONTRADOS POSSUEM DATA/HORA
+        # ----------------------------------------------------
 
-            data_evento = (
-                _converter_data(
-                    item[
-                        "data_hora"
-                    ]
-                )
-            )
+        if item.get("data_hora"):
+            data_evento = _converter_data(item["data_hora"])
 
 
-        # NÃO ENCONTRADO é definido
-        # na finalização do inventário.
-        elif (
-            resultado
-            == "NAO_ENCONTRADO"
-            and inventario.get(
-                "data_fim"
-            )
-        ):
+        # ----------------------------------------------------
+        # NÃO ENCONTRADO É DEFINIDO NA FINALIZAÇÃO
+        # ----------------------------------------------------
 
-            data_evento = (
-                _converter_data(
-                    inventario[
-                        "data_fim"
-                    ],
+        elif resultado == "NAO_ENCONTRADO":
+
+            if inventario.get("finalizado_em"):
+                data_evento = _converter_data(inventario["finalizado_em"])
+                mostrar_hora = True
+
+            elif inventario.get("data_fim"):
+                data_evento = _converter_data(
+                    inventario["data_fim"],
                     fim_do_dia=True,
                 )
-            )
+                mostrar_hora = False
 
-            mostrar_hora = False
 
+        # ----------------------------------------------------
+        # FALLBACK
+        # ----------------------------------------------------
 
         else:
-
-            data_evento = (
-                _converter_data(
-                    item.get(
-                        "created_at"
-                    )
-                )
-            )
+            data_evento = _converter_data(item.get("created_at"))
 
 
         if not data_evento:
@@ -709,91 +452,53 @@ def listar_historico_equipamento(
 
 
         titulos = {
-            "CORRETO":
-                "Inventário — conferido",
-
-            "DIVERGENTE":
-                "Inventário — divergência",
-
-            "NAO_PREVISTO":
-                "Inventário — não previsto",
-
-            "NAO_ENCONTRADO":
-                "Inventário — não encontrado",
+            "CORRETO": "Inventário — conferido",
+            "DIVERGENTE": "Inventário — divergência",
+            "NAO_PREVISTO": "Inventário — não previsto",
+            "NAO_ENCONTRADO": "Inventário — não encontrado",
         }
 
 
         detalhes = {
-            "Inventário":
-                inventario.get(
-                    "nome"
-                )
-                or "-",
-
-            "Resultado":
-                resultado,
-
-            "Local esperado":
-                _formatar_local(
-                    item.get(
-                        "esperado"
-                    )
-                ),
-
-            "Local encontrado":
-                (
-                    _formatar_local(
-                        item.get(
-                            "encontrado"
-                        )
-                    )
-                    if item.get(
-                        "encontrado"
-                    )
-                    else "-"
-                ),
+            "Inventário": inventario.get("nome") or "-",
+            "Resultado": resultado,
+            "Local esperado": _formatar_local(item.get("esperado")),
+            "Local encontrado": (
+                _formatar_local(item.get("encontrado"))
+                if item.get("encontrado")
+                else "-"
+            ),
         }
 
 
-        if item.get(
-            "observacoes"
-        ):
+        # ----------------------------------------------------
+        # AUDITORIA DO INVENTÁRIO
+        # ----------------------------------------------------
 
-            detalhes[
-                "Observações"
-            ] = item[
-                "observacoes"
-            ]
+        if resultado == "NAO_ENCONTRADO":
+            detalhes["Inventário finalizado por"] = _formatar_usuario(
+                inventario.get("finalizado_por_email")
+            )
+
+        else:
+            detalhes["Conferido por"] = _formatar_usuario(
+                item.get("conferido_por_email")
+            )
+
+
+        if item.get("observacoes"):
+            detalhes["Observações"] = item["observacoes"]
 
 
         eventos.append(
             {
-                "categoria":
-                    "INVENTARIO",
-
-                "icone":
-                    "📦",
-
-                "titulo":
-                    titulos.get(
-                        resultado,
-                        "Inventário",
-                    ),
-
-                "resumo":
-                    inventario.get(
-                        "nome"
-                    )
-                    or "Inventário",
-
-                "data_ordem":
-                    data_evento,
-
-                "mostrar_hora":
-                    mostrar_hora,
-
-                "detalhes":
-                    detalhes,
+                "categoria": "INVENTARIO",
+                "icone": "📦",
+                "titulo": titulos.get(resultado, "Inventário"),
+                "resumo": inventario.get("nome") or "Inventário",
+                "data_ordem": data_evento,
+                "mostrar_hora": mostrar_hora,
+                "detalhes": detalhes,
             }
         )
 
@@ -803,10 +508,8 @@ def listar_historico_equipamento(
     # ========================================================
 
     eventos.sort(
-        key=lambda evento:
-            evento["data_ordem"],
+        key=lambda evento: evento["data_ordem"],
         reverse=True,
     )
-
 
     return eventos
