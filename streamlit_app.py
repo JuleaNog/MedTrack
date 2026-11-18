@@ -59,7 +59,9 @@ if not esta_autenticado():
 
     with coluna_login:
 
-        with st.form("form_login"):
+        with st.form(
+            "form_login"
+        ):
 
             email = st.text_input(
                 "E-mail"
@@ -70,11 +72,14 @@ if not esta_autenticado():
                 type="password",
             )
 
-            entrar = st.form_submit_button(
-                "Entrar",
-                type="primary",
-                use_container_width=True,
+            entrar = (
+                st.form_submit_button(
+                    "Entrar",
+                    type="primary",
+                    use_container_width=True,
+                )
             )
+
 
         if entrar:
 
@@ -115,6 +120,7 @@ if not esta_autenticado():
                         "E-mail ou senha inválidos."
                     )
 
+
     st.stop()
 
 
@@ -150,6 +156,7 @@ with st.sidebar:
 # ============================================================
 
 paginas = {
+
     "Gestão": [
 
         st.Page(
@@ -166,6 +173,12 @@ paginas = {
         ),
 
         st.Page(
+            "app_pages/cadastros.py",
+            title="Cadastros",
+            icon="➕",
+        ),
+
+        st.Page(
             "app_pages/inventario.py",
             title="Inventário",
             icon="📦",
@@ -177,5 +190,6 @@ paginas = {
 pagina = st.navigation(
     paginas
 )
+
 
 pagina.run()
