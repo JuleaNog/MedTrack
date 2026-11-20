@@ -559,7 +559,7 @@ with col_status:
             "status",
             "SEM_STATUS",
         )
-        for equipamento in equipamentos_ativos
+        for equipamento in equipamentos
     )
 
     dados_status = pd.DataFrame(
