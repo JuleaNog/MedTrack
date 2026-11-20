@@ -1,5 +1,5 @@
 from services.database import get_supabase
-
+from postgrest.exceptions import APIError
 
 # ============================================================
 # CRIAR INVENTÁRIO
@@ -10,23 +10,53 @@ def criar_inventario(
     local_id: int,
     observacoes: str | None = None,
 ):
+    """
+    Cria um novo inventário para um local.
+
+    Converte erros de regra de negócio do banco em mensagens amigáveis para a interface.
+    """
+
     supabase = get_supabase()
 
-    response = (
-        supabase
-        .rpc(
-            "criar_inventario_local",
-            {
-                "p_nome": nome.strip(),
-                "p_local_id": local_id,
-                "p_observacoes": observacoes,
-            },
+    try:
+
+        response = (
+            supabase
+            .rpc(
+                "criar_inventario_local",
+                {
+                    "p_nome": nome.strip(),
+                    "p_local_id": local_id,
+                    "p_observacoes": observacoes,
+                },
+            )
+            .execute()
         )
-        .execute()
-    )
 
-    return response.data
+        return response.data
 
+    except APIError as erro:
+
+        mensagem = str(erro)
+
+        # ----------------------------------------------------
+        # JÁ EXISTE INVENTÁRIO ABERTO NO LOCAL
+        # ----------------------------------------------------
+
+        if (
+            "Já existe um inventário aberto para este local"
+            in mensagem
+            or "inventarios_um_aberto_por_local"
+            in mensagem
+        ):
+
+            raise ValueError(
+                "Já existe um inventário aberto para este local. "
+                "Finalize o inventário existente antes de criar outro."
+            ) from None
+
+        # Outros erros continuam sendo propagados.
+        raise
 
 # ============================================================
 # LISTAR INVENTÁRIOS

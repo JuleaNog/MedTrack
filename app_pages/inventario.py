@@ -517,14 +517,19 @@ with st.expander(
                     st.rerun()
 
 
-                except Exception as erro:
+                except ValueError as erro:
 
-                    st.error(
-                        "Não foi possível criar "
-                        "o inventário."
+                    st.warning(
+                        str(erro)
                     )
 
-                    st.exception(erro)
+
+                except Exception:
+
+                    st.error(
+                        "Não foi possível criar o inventário. "
+                        "Verifique os dados informados e tente novamente."
+                    )
 
 
 # ============================================================
