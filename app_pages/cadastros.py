@@ -58,16 +58,13 @@ tab_equipamento, tab_modelo = st.tabs(
     ]
 )
 
-
 # ============================================================
 # CADASTRAR EQUIPAMENTO
 # ============================================================
 
 with tab_equipamento:
 
-    st.subheader(
-        "Cadastrar novo equipamento"
-    )
+    st.subheader("Cadastrar novo equipamento")
 
     st.write(
         "Utilize este formulário quando uma nova "
@@ -80,20 +77,14 @@ with tab_equipamento:
     # --------------------------------------------------------
 
     try:
-
-        modelos = (
-            listar_modelos_ativos()
-        )
+        modelos = listar_modelos_ativos()
 
     except Exception as erro:
-
         st.error(
             "Não foi possível carregar "
             "os modelos cadastrados."
         )
-
         st.exception(erro)
-
         modelos = []
 
 
@@ -102,20 +93,14 @@ with tab_equipamento:
     # --------------------------------------------------------
 
     try:
-
-        locais = (
-            listar_locais_ativos()
-        )
+        locais = listar_locais_ativos()
 
     except Exception as erro:
-
         st.error(
             "Não foi possível carregar "
             "os locais cadastrados."
         )
-
         st.exception(erro)
-
         locais = []
 
 
@@ -139,24 +124,11 @@ with tab_equipamento:
 
         opcoes_modelo = {}
 
-
         for modelo in modelos:
 
-            tipo = (
-                modelo.get("tipo")
-                or "Equipamento"
-            )
-
-            fabricante = (
-                modelo.get("fabricante")
-                or "-"
-            )
-
-            nome_modelo = (
-                modelo.get("modelo")
-                or "-"
-            )
-
+            tipo = modelo.get("tipo") or "Equipamento"
+            fabricante = modelo.get("fabricante") or "-"
+            nome_modelo = modelo.get("modelo") or "-"
 
             texto = (
                 f"{tipo} — "
@@ -164,10 +136,72 @@ with tab_equipamento:
                 f"{nome_modelo}"
             )
 
+            opcoes_modelo[texto] = modelo
 
-            opcoes_modelo[
-                texto
-            ] = modelo
+
+        # ----------------------------------------------------
+        # MODELO
+        # ----------------------------------------------------
+        #
+        # IMPORTANTE:
+        # O selectbox fica FORA do st.form para que a mudança
+        # de modelo atualize imediatamente a periodicidade e
+        # a criticidade exibidas na tela.
+        # ----------------------------------------------------
+
+        modelo_selecionado = st.selectbox(
+            "Modelo *",
+            options=list(opcoes_modelo.keys()),
+            key="cadastro_equipamento_modelo",
+        )
+
+
+        modelo_dados = opcoes_modelo[
+            modelo_selecionado
+        ]
+
+
+        periodicidade = modelo_dados.get(
+            "periodicidade_preventiva_meses"
+        )
+
+        criticidade_padrao = modelo_dados.get(
+            "criticidade_padrao"
+        )
+
+
+        # ----------------------------------------------------
+        # INFORMAÇÕES DO MODELO SELECIONADO
+        # ----------------------------------------------------
+
+        if periodicidade:
+
+            st.caption(
+                f"Periodicidade preventiva do modelo: "
+                f"{periodicidade} mês(es)."
+            )
+
+        else:
+
+            st.caption(
+                "Periodicidade preventiva do modelo: "
+                "não definida."
+            )
+
+
+        if criticidade_padrao:
+
+            st.caption(
+                f"Criticidade padrão do modelo: "
+                f"{criticidade_padrao}."
+            )
+
+        else:
+
+            st.caption(
+                "Criticidade padrão do modelo: "
+                "não informada."
+            )
 
 
         # ----------------------------------------------------
@@ -175,10 +209,8 @@ with tab_equipamento:
         # ----------------------------------------------------
 
         opcoes_local = {
-            "Sem local definido":
-                None
+            "Sem local definido": None
         }
-
 
         for local in locais:
 
@@ -197,17 +229,13 @@ with tab_equipamento:
                 or "-"
             )
 
-
             texto = (
                 f"{setor} — "
                 f"{sala} "
                 f"({codigo})"
             )
 
-
-            opcoes_local[
-                texto
-            ] = local["id"]
+            opcoes_local[texto] = local["id"]
 
 
         # ----------------------------------------------------
@@ -218,111 +246,44 @@ with tab_equipamento:
             "form_cadastrar_equipamento"
         ):
 
-            modelo_selecionado = (
-                st.selectbox(
-                    "Modelo *",
-                    options=list(
-                        opcoes_modelo.keys()
-                    ),
-                )
-            )
-
-
-            modelo_dados = (
-                opcoes_modelo[
-                    modelo_selecionado
-                ]
-            )
-
-
-            periodicidade = (
-                modelo_dados.get(
-                    "periodicidade_preventiva_meses"
-                )
-            )
-
-
-            criticidade_padrao = (
-                modelo_dados.get(
-                    "criticidade_padrao"
-                )
-            )
-
-
-            if periodicidade:
-
-                st.caption(
-                    f"Periodicidade preventiva do modelo: "
-                    f"{periodicidade} mês(es)."
-                )
-
-
-            if criticidade_padrao:
-
-                st.caption(
-                    f"Criticidade padrão do modelo: "
-                    f"{criticidade_padrao}."
-                )
-
-
             patrimonio = st.text_input(
                 "Patrimônio",
-                placeholder=(
-                    "Ex.: 123456"
-                ),
+                placeholder="Ex.: 123456",
             )
 
 
             numero_serie = st.text_input(
                 "Número de série",
-                placeholder=(
-                    "Ex.: SN-A12345"
-                ),
+                placeholder="Ex.: SN-A12345",
             )
 
 
-            col_data1, col_data2 = (
-                st.columns(2)
-            )
+            col_data1, col_data2 = st.columns(2)
 
 
             with col_data1:
 
-                data_aquisicao = (
-                    st.date_input(
-                        "Data de aquisição",
-                        value=None,
-                        format="DD/MM/YYYY",
-                    )
+                data_aquisicao = st.date_input(
+                    "Data de aquisição",
+                    value=None,
+                    format="DD/MM/YYYY",
                 )
 
 
             with col_data2:
 
-                data_instalacao = (
-                    st.date_input(
-                        "Data de instalação",
-                        value=None,
-                        format="DD/MM/YYYY",
-                    )
+                data_instalacao = st.date_input(
+                    "Data de instalação",
+                    value=None,
+                    format="DD/MM/YYYY",
                 )
 
 
-            local_selecionado = (
-                st.selectbox(
-                    "Local inicial",
-                    options=list(
-                        opcoes_local.keys()
-                    ),
-                )
-            )
-
-
-            # Por padrão, a unidade herda a
-            # criticidade definida no modelo.
-
-            criticidade = (
-                criticidade_padrao
+            local_selecionado = st.selectbox(
+                "Local inicial",
+                options=list(
+                    opcoes_local.keys()
+                ),
             )
 
 
@@ -352,46 +313,27 @@ with tab_equipamento:
 
         if confirmar_equipamento:
 
-            local_id = (
-                opcoes_local[
-                    local_selecionado
-                ]
-            )
+            local_id = opcoes_local[
+                local_selecionado
+            ]
 
 
             try:
 
                 equipamento_criado = (
                     cadastrar_equipamento(
-                        modelo_id=(
-                            modelo_dados["id"]
-                        ),
-
+                        modelo_id=modelo_dados["id"],
                         patrimonio=patrimonio,
+                        numero_serie=numero_serie,
+                        data_aquisicao=data_aquisicao,
+                        data_instalacao=data_instalacao,
+                        local_atual_id=local_id,
 
-                        numero_serie=(
-                            numero_serie
-                        ),
+                        # A unidade herda automaticamente
+                        # a criticidade padrão do modelo.
+                        criticidade=criticidade_padrao,
 
-                        data_aquisicao=(
-                            data_aquisicao
-                        ),
-
-                        data_instalacao=(
-                            data_instalacao
-                        ),
-
-                        local_atual_id=(
-                            local_id
-                        ),
-
-                        criticidade=(
-                            criticidade
-                        ),
-
-                        observacoes=(
-                            observacoes
-                        ),
+                        observacoes=observacoes,
                     )
                 )
 
@@ -402,11 +344,8 @@ with tab_equipamento:
                 if equipamento_criado:
 
                     codigo = (
-                        equipamento_criado[
-                            0
-                        ].get(
-                            "codigo"
-                        )
+                        equipamento_criado[0]
+                        .get("codigo")
                     )
 
 
@@ -441,9 +380,7 @@ with tab_equipamento:
                     "o equipamento."
                 )
 
-                st.exception(
-                    erro
-                )
+                st.exception(erro)
 
 # ============================================================
 # CADASTRAR MODELO
