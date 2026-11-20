@@ -373,14 +373,42 @@ with tab_equipamento:
                 st.rerun()
 
 
-            except Exception as erro:
+            except ValueError as erro:
 
-                st.error(
-                    "Não foi possível cadastrar "
-                    "o equipamento."
+                st.warning(
+                    str(erro)
                 )
 
-                st.exception(erro)
+
+            except Exception as erro:
+
+                mensagem_erro = str(
+                    erro
+                )
+
+
+                # --------------------------------------------------------
+                # SEGURANÇA ADICIONAL PARA PATRIMÔNIO DUPLICADO
+                # --------------------------------------------------------
+
+                if (
+                    "23505" in mensagem_erro
+                    and "equipamentos_patrimonio_key"
+                    in mensagem_erro
+                ):
+
+                    st.warning(
+                        "Já existe um equipamento cadastrado "
+                        "com este número de patrimônio."
+                    )
+
+
+                else:
+
+                    st.error(
+                        "Não foi possível cadastrar o equipamento. "
+                        "Verifique os dados informados e tente novamente."
+                    )
 
 # ============================================================
 # CADASTRAR MODELO
@@ -392,8 +420,7 @@ with tab_modelo:
 
     st.write(
         "Cadastre um modelo apenas uma vez. "
-        "Depois, diferentes unidades físicas "
-        "podem utilizar o mesmo modelo."
+        "Depois, diferentes unidades físicas podem utilizar o mesmo modelo."
     )
 
 

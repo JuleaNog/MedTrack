@@ -197,15 +197,56 @@ def cadastrar_equipamento(
 
     supabase = get_supabase()
 
+    patrimonio_limpo = _texto_ou_none(
+        patrimonio
+    )
+
+
+    # ============================================================
+    # VERIFICAR PATRIMÔNIO DUPLICADO
+    # ============================================================
+
+    if patrimonio_limpo:
+
+        existente = (
+            supabase
+            .table("equipamentos")
+            .select(
+                """
+                id,
+                codigo,
+                patrimonio
+                """
+            )
+            .eq(
+                "patrimonio",
+                patrimonio_limpo,
+            )
+            .limit(1)
+            .execute()
+        )
+
+
+        if existente.data:
+
+            codigo_existente = (
+                existente.data[0].get("codigo")
+                or "-"
+            )
+
+            raise ValueError(
+                "Já existe um equipamento cadastrado "
+                f"com o patrimônio {patrimonio_limpo}. "
+                f"Equipamento: {codigo_existente}."
+            )
+
 
     parametros = {
         "p_modelo_id":
             modelo_id,
 
         "p_patrimonio":
-            _texto_ou_none(
-                patrimonio
-            ),
+            patrimonio_limpo,
 
         "p_numero_serie":
             _texto_ou_none(
