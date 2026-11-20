@@ -35,7 +35,6 @@ def carregar_dados_dashboard():
             )
             """
         )
-        .eq("ativo", True)
         .execute()
     )
 
