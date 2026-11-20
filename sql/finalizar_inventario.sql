@@ -19,21 +19,21 @@ declare
 
 begin
 
+    -- ========================================================
+    -- VALIDAR INVENTÁRIO
+    -- ========================================================
+
     select i.status
-
     into v_status
-
-    from public.inventarios i
-
+    from public.inventarios as i
     where i.id = p_inventario_id
-
     for update;
 
 
     if not found then
 
         raise exception
-        'Inventário não encontrado.';
+            'Inventário não encontrado.';
 
     end if;
 
@@ -41,39 +41,44 @@ begin
     if v_status <> 'ABERTO' then
 
         raise exception
-        'Este inventário já foi finalizado.';
+            'Este inventário já foi finalizado.';
 
     end if;
 
 
-    -- Tudo que ainda estava pendente
-    -- passa a ser não encontrado.
+    -- ========================================================
+    -- PENDENTES -> NÃO ENCONTRADOS
+    -- ========================================================
 
-    update public.inventario_itens
+    update public.inventario_itens as ii
 
     set resultado = 'NAO_ENCONTRADO'
 
-    where inventario_id = p_inventario_id
+    where ii.inventario_id = p_inventario_id
+      and ii.resultado = 'PENDENTE';
 
-      and resultado = 'PENDENTE';
 
+    -- ========================================================
+    -- FINALIZAR INVENTÁRIO
+    -- ========================================================
 
-    -- Fecha o inventário.
-
-    update public.inventarios
+    update public.inventarios as i
 
     set
         status = 'FINALIZADO',
         data_fim = current_date
 
-    where id = p_inventario_id;
+    where i.id = p_inventario_id;
 
+
+    -- ========================================================
+    -- RESUMO
+    -- ========================================================
 
     return query
 
     select
         p_inventario_id,
-
         count(*),
 
         count(*) filter (
@@ -92,10 +97,9 @@ begin
             where ii.resultado = 'NAO_PREVISTO'
         )
 
-    from public.inventario_itens ii
+    from public.inventario_itens as ii
 
-    where ii.inventario_id =
-        p_inventario_id;
+    where ii.inventario_id = p_inventario_id;
 
 end;
 $$;
