@@ -445,16 +445,13 @@ with tab_equipamento:
                     erro
                 )
 
-
 # ============================================================
 # CADASTRAR MODELO
 # ============================================================
 
 with tab_modelo:
 
-    st.subheader(
-        "Cadastrar novo modelo"
-    )
+    st.subheader("Cadastrar novo modelo")
 
     st.write(
         "Cadastre um modelo apenas uma vez. "
@@ -464,98 +461,92 @@ with tab_modelo:
 
 
     # --------------------------------------------------------
+    # PERIODICIDADE PREVENTIVA
+    # --------------------------------------------------------
+
+    # Este checkbox fica FORA do st.form porque precisamos
+    # atualizar a interface imediatamente ao marcá-lo.
+    possui_preventiva = st.checkbox(
+        "Modelo possui periodicidade de manutenção preventiva",
+        key="modelo_possui_preventiva",
+    )
+
+
+    # --------------------------------------------------------
     # FORMULÁRIO
     # --------------------------------------------------------
 
-    with st.form(
-        "form_cadastrar_modelo"
-    ):
+    with st.form("form_cadastrar_modelo"):
 
         tipo = st.text_input(
             "Tipo de equipamento *",
-            placeholder=(
-                "Ex.: Monitor multiparamétrico"
-            ),
+            placeholder="Ex.: Monitor multiparamétrico",
         )
 
 
         fabricante = st.text_input(
             "Fabricante *",
-            placeholder=(
-                "Ex.: Philips"
-            ),
+            placeholder="Ex.: Philips",
         )
 
 
         modelo = st.text_input(
             "Modelo *",
-            placeholder=(
-                "Ex.: IntelliVue MX450"
-            ),
+            placeholder="Ex.: IntelliVue MX450",
         )
 
 
-        possui_preventiva = (
-            st.checkbox(
-                "Modelo possui periodicidade "
-                "de manutenção preventiva"
-            )
-        )
-
+        # ----------------------------------------------------
+        # DADOS DA PREVENTIVA
+        # ----------------------------------------------------
 
         periodicidade = None
+        fonte_periodicidade = None
+        referencia_documental = None
 
 
         if possui_preventiva:
 
-            periodicidade = (
-                st.number_input(
-                    "Periodicidade preventiva "
-                    "(meses) *",
-                    min_value=1,
-                    step=1,
-                    value=12,
-                )
+            periodicidade = st.number_input(
+                "Periodicidade preventiva (meses) *",
+                min_value=1,
+                step=1,
+                value=12,
             )
 
 
-        fonte_periodicidade = (
-            st.text_input(
+            fonte_periodicidade = st.text_input(
                 "Fonte da periodicidade",
-                placeholder=(
-                    "Ex.: Manual do fabricante"
-                ),
+                placeholder="Ex.: Manual do fabricante",
             )
-        )
 
 
-        referencia_documental = (
-            st.text_input(
+            referencia_documental = st.text_input(
                 "Referência documental",
-                placeholder=(
-                    "Ex.: Manual de serviço, "
-                    "seção 8.2"
-                ),
+                placeholder="Ex.: Manual de serviço, seção 8.2",
             )
+
+
+        # ----------------------------------------------------
+        # CRITICIDADE
+        # ----------------------------------------------------
+
+        criticidade_padrao = st.selectbox(
+            "Criticidade padrão",
+            options=[
+                "Não informada",
+                "BAIXA",
+                "MODERADA",
+                "ALTA",
+                "CRÍTICA",
+            ],
         )
 
 
-        criticidade_padrao = (
-            st.text_input(
-                "Criticidade padrão",
-                placeholder=(
-                    "Ex.: ALTA"
-                ),
-            )
-        )
-
-
-        confirmar_modelo = (
-            st.form_submit_button(
-                "Cadastrar modelo",
-                type="primary",
-                use_container_width=True,
-            )
+        confirmar_modelo = st.form_submit_button(
+            "Cadastrar modelo",
+            type="primary",
+            use_container_width=True,
         )
 
 
@@ -568,9 +559,9 @@ with tab_modelo:
         if not tipo.strip():
 
             st.warning(
-                "Informe o tipo "
-                "do equipamento."
+                "Informe o tipo do equipamento."
             )
+
 
         elif not fabricante.strip():
 
@@ -578,15 +569,31 @@ with tab_modelo:
                 "Informe o fabricante."
             )
 
+
         elif not modelo.strip():
 
             st.warning(
                 "Informe o modelo."
             )
 
+
+        elif possui_preventiva and not periodicidade:
+
+            st.warning(
+                "Informe a periodicidade preventiva."
+            )
+
+
         else:
 
             try:
+
+                criticidade_salvar = (
+                    None
+                    if criticidade_padrao == "Não informada"
+                    else criticidade_padrao
+                )
+
 
                 cadastrar_modelo(
                     tipo=tipo,
@@ -594,17 +601,21 @@ with tab_modelo:
                     modelo=modelo,
                     periodicidade_preventiva_meses=(
                         int(periodicidade)
-                        if periodicidade
+                        if possui_preventiva
                         else None
                     ),
                     fonte_periodicidade=(
                         fonte_periodicidade
+                        if possui_preventiva
+                        else None
                     ),
                     referencia_documental=(
                         referencia_documental
+                        if possui_preventiva
+                        else None
                     ),
                     criticidade_padrao=(
-                        criticidade_padrao
+                        criticidade_salvar
                     ),
                 )
 
@@ -612,8 +623,7 @@ with tab_modelo:
                 st.session_state[
                     "cadastro_modelo_sucesso"
                 ] = (
-                    "Modelo cadastrado "
-                    "com sucesso."
+                    "Modelo cadastrado com sucesso."
                 )
 
 
@@ -630,8 +640,7 @@ with tab_modelo:
             except Exception as erro:
 
                 st.error(
-                    "Não foi possível "
-                    "cadastrar o modelo."
+                    "Não foi possível cadastrar o modelo."
                 )
 
                 st.exception(
@@ -667,21 +676,15 @@ with tab_modelo:
                 linhas.append(
                     {
                         "Tipo":
-                            item.get(
-                                "tipo"
-                            )
+                            item.get("tipo")
                             or "-",
 
                         "Fabricante":
-                            item.get(
-                                "fabricante"
-                            )
+                            item.get("fabricante")
                             or "-",
 
                         "Modelo":
-                            item.get(
-                                "modelo"
-                            )
+                            item.get("modelo")
                             or "-",
 
                         "Preventiva":
